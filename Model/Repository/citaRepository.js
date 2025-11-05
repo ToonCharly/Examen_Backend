@@ -10,6 +10,21 @@ class CitaRepository extends Observable {
     return Cita.find().populate('paciente medico').sort({ fecha: 1, hora: 1 }).lean();
   }
 
+  /**
+   * List by filters: estado and desde (fecha >= desde)
+   * @param {{estado?:string, desde?:string}} filters
+   */
+  async listByFilter({ estado, desde } = {}) {
+    const query = {};
+    if (estado) query.estado = estado;
+    if (desde) {
+      // desde expected as YYYY-MM-DD
+      const from = new Date(desde);
+      if (!isNaN(from)) query.fecha = { $gte: from };
+    }
+    return Cita.find(query).populate('paciente medico').sort({ fecha: 1, hora: 1 }).lean();
+  }
+
   async getById(id) {
     return Cita.findById(id).populate('paciente medico').lean();
   }

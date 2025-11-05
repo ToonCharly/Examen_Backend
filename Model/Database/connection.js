@@ -15,10 +15,16 @@ function buildMongoUri() {
   if (user && pass && host) {
     // If host looks like a srv host (e.g., *.mongodb.net) use +srv
     const useSrv = host.includes('mongodb.net') || host.startsWith('server.');
+    // allow extra params to be provided (e.g. appName, retryWrites)
+    const params = process.env.MONGO_PARAMS || '';
+    const prefixedParams = params ? (params.startsWith('?') ? params : `?${params}`) : '';
+
     if (useSrv) {
-      return `mongodb+srv://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}/${dbName}?retryWrites=true&w=majority`;
+      // default params for srv if none provided
+      const defaultSrv = prefixedParams || '?retryWrites=true&w=majority';
+      return `mongodb+srv://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}/${dbName}${defaultSrv}`;
     }
-    return `mongodb://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}/${dbName}`;
+    return `mongodb://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}/${dbName}${prefixedParams}`;
   }
 
   // Fallback to localhost
@@ -35,7 +41,9 @@ async function connect(options = {}) {
     try {
       // modern mongoose does not require useNewUrlParser/useUnifiedTopology
       await mongoose.connect(MONGO_URI, { ...options });
-      console.log('✅ MongoDB connected to', MONGO_URI);
+      // avoid printing credentials to logs — mask password if present
+      const maskedUri = (MONGO_URI || '').replace(/:(?:[^:@\/]+)@/, ':***@');
+      console.log('✅ MongoDB connected to', maskedUri.replace(/\?[^\s]+$/, ''));
       return;
     } catch (error) {
       const isLast = attempt === maxRetries;

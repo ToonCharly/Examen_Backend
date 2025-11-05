@@ -6,7 +6,8 @@ function createCitasRouter(repo) {
 
   router.get('/', async (req, res) => {
     try {
-      const list = await repo.listAll();
+      const { estado, desde } = req.query;
+      const list = (estado || desde) ? await repo.listByFilter({ estado, desde }) : await repo.listAll();
       res.json(list);
     } catch (err) {
       console.error(err);
@@ -44,14 +45,14 @@ function createCitasRouter(repo) {
     }
   });
 
-  router.delete('/:id', async (req, res) => {
+  // Soft-delete: mark cita as Cancelada to preserve history
+  router.delete('/:id', async (req, res, next) => {
     try {
-      const removed = await repo.delete(req.params.id);
-      if (!removed) return res.status(404).json({ error: 'Not found' });
-      res.json({ success: true });
+      const updated = await repo.update(req.params.id, { estado: 'Cancelada' });
+      if (!updated) return res.status(404).json({ error: 'Not found' });
+      res.json({ success: true, cita: updated });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Internal Server Error' });
+      next(err);
     }
   });
 
