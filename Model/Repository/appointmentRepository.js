@@ -15,17 +15,36 @@ class AppointmentRepository extends Observable {
   }
 
   async create(payload) {
-    const appt = new Appointment(payload);
-    const saved = await appt.save();
-    const obj = saved.toObject();
-    this.notifyObservers(EVENTS.CITA_CREADA, obj);
-    return obj;
+    try {
+      const appt = new Appointment(payload);
+      const saved = await appt.save();
+      const obj = saved.toObject();
+      this.notifyObservers(EVENTS.CITA_CREADA, obj);
+      return obj;
+    } catch (error) {
+      // Handle duplicate key (unique index) errors from MongoDB (E11000)
+      if (error && (error.code === 11000 || (error.name === 'MongoServerError' && error.code === 11000))) {
+        const err = new Error('Conflicto de base de datos: entrada duplicada (posible conflicto de horario)');
+        err.code = 'CONFLICT';
+        throw err;
+      }
+      throw error;
+    }
   }
 
   async update(appointmentId, updates) {
-    const updated = await Appointment.findOneAndUpdate({ appointmentId }, updates, { new: true }).lean();
-    if (updated) this.notifyObservers(EVENTS.CITA_ACTUALIZADA, updated);
-    return updated;
+    try {
+      const updated = await Appointment.findOneAndUpdate({ appointmentId }, updates, { new: true }).lean();
+      if (updated) this.notifyObservers(EVENTS.CITA_ACTUALIZADA, updated);
+      return updated;
+    } catch (error) {
+      if (error && (error.code === 11000 || (error.name === 'MongoServerError' && error.code === 11000))) {
+        const err = new Error('Conflicto de base de datos al actualizar: entrada duplicada (posible conflicto de horario)');
+        err.code = 'CONFLICT';
+        throw err;
+      }
+      throw error;
+    }
   }
 
   async delete(appointmentId) {
